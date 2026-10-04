@@ -813,6 +813,62 @@ export function getInitialSeedData(): DatabaseSchema {
         paymentStatus: 'Paid',
         createdAt: '2026-10-02T16:00:00.000Z',
       },
+      {
+        id: 'TRX-2026-014',
+        type: 'expense',
+        date: '2026-09-05',
+        projectId: null,
+        isCompanyOverhead: true,
+        category: 'Marketing & Brand',
+        description: 'Meta & Google Ads Campaign - Client Pipeline Inbound Lead Gen',
+        amount: 180000,
+        paymentMethod: 'Corporate Card',
+        reference: 'ADS-MKT-SEP26',
+        paymentStatus: 'Paid',
+        createdAt: '2026-09-05T11:00:00.000Z',
+      },
+      {
+        id: 'TRX-2026-015',
+        type: 'expense',
+        date: '2026-09-18',
+        projectId: null,
+        isCompanyOverhead: true,
+        category: 'Marketing & Brand',
+        description: 'Dhaka Tech Summit 2026 Showcase Booth & Brand Sponsorship',
+        amount: 250000,
+        paymentMethod: 'Bank Transfer (BRAC Bank)',
+        reference: 'SPONSOR-DHK-TECH',
+        paymentStatus: 'Paid',
+        createdAt: '2026-09-18T14:00:00.000Z',
+      },
+      {
+        id: 'TRX-2026-016',
+        type: 'expense',
+        date: '2026-09-25',
+        projectId: null,
+        isCompanyOverhead: true,
+        category: 'Software & Cloud Services',
+        description: 'OpenAI ChatGPT Team + Figma Enterprise 12-Month Seat Subscriptions',
+        amount: 210000,
+        paymentMethod: 'Corporate Card',
+        reference: 'SUB-GPT-FIG-2026',
+        paymentStatus: 'Paid',
+        createdAt: '2026-09-25T16:30:00.000Z',
+      },
+      {
+        id: 'TRX-2026-017',
+        type: 'expense',
+        date: '2026-08-20',
+        projectId: null,
+        isCompanyOverhead: true,
+        category: 'Hardware & Equipment',
+        description: 'Dell UltraSharp Monitors & M-Series Development Laptops for Engineers',
+        amount: 480000,
+        paymentMethod: 'Bank Transfer (BRAC Bank)',
+        reference: 'HW-DELL-BANANI',
+        paymentStatus: 'Paid',
+        createdAt: '2026-08-20T10:00:00.000Z',
+      },
     ],
     invoices: [
       {
@@ -1239,6 +1295,42 @@ export function getInitialSeedData(): DatabaseSchema {
         updatedAt: '2026-08-30T00:00:00.000Z',
       },
     ],
+    investments: [
+      {
+        id: 'INV-CAP-001',
+        source: 'Founders Initial Equity Capital',
+        investorName: 'Asaduzzaman Rocky (Lead Founder)',
+        amount: 5000000,
+        date: '2026-01-10',
+        paymentMethod: 'Bank Transfer (BRAC Bank)',
+        reference: 'BRAC-CORP-CAP-9910',
+        notes: 'Primary seed capitalization for Satora Lab Banani office, workstation hardware, SaaS subscriptions, and client pipeline.',
+        allocations: {
+          marketing: 1000000,
+          subscriptions: 800000,
+          hardwareOffice: 1500000,
+          operatingRunway: 1700000,
+        },
+        createdAt: '2026-01-10T10:00:00.000Z',
+      },
+      {
+        id: 'INV-CAP-002',
+        source: 'Angel Strategic Growth Round',
+        investorName: 'Bangladesh Angel Syndicate / Tech Ventures',
+        amount: 3500000,
+        date: '2026-06-15',
+        paymentMethod: 'Bank Transfer (City Bank)',
+        reference: 'CTY-ANGEL-ROUND-2026',
+        notes: 'Scale-up capital dedicated for marketing expansion, high-concurrency cloud licenses, and AI enterprise talent.',
+        allocations: {
+          marketing: 1500000,
+          subscriptions: 1000000,
+          hardwareOffice: 500000,
+          operatingRunway: 500000,
+        },
+        createdAt: '2026-06-15T12:00:00.000Z',
+      },
+    ],
   };
 }
 
@@ -1284,6 +1376,10 @@ class DatabaseManager {
           }
           if (!this.data.vaultCredentials || this.data.vaultCredentials.length === 0) {
             this.data.vaultCredentials = defaults.vaultCredentials;
+            needsSave = true;
+          }
+          if (!this.data.investments || this.data.investments.length === 0) {
+            this.data.investments = defaults.investments;
             needsSave = true;
           }
           if (needsSave) {

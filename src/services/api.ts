@@ -14,6 +14,8 @@ import {
   ChatMessage,
   MessageRequest,
   VaultCredential,
+  InvestmentEntry,
+  TreasurySummary,
 } from '../types';
 
 let currentUserId: string = localStorage.getItem('satora_user_id') || 'USR-001';
@@ -158,6 +160,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  recordManualPayment: (data: {
+    date: string;
+    amount: number;
+    reference: string;
+    paymentMethod: string;
+    type?: 'income' | 'expense';
+    category?: string;
+    description?: string;
+    projectId?: string;
+    clientName?: string;
+    notes?: string;
+  }) =>
+    request<Transaction>('/transactions/manual-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // Tasks
   getTasks: () => request<Task[]>('/tasks'),
@@ -229,4 +247,17 @@ export const api = {
     request<{ success: boolean; id: string }>(`/vault/${id}`, { method: 'DELETE' }),
   auditVaultAccess: (id: string) =>
     request<{ success: boolean }>(`/vault/${id}/audit-access`, { method: 'POST' }),
+
+  // Startup Investment & Company Treasury
+  getInvestments: () =>
+    request<{ investments: InvestmentEntry[]; treasury: TreasurySummary }>('/investments'),
+  createInvestment: (data: Partial<InvestmentEntry>) =>
+    request<{ investment: InvestmentEntry; treasury: TreasurySummary }>('/investments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteInvestment: (id: string) =>
+    request<{ success: boolean; id: string; treasury: TreasurySummary }>(`/investments/${id}`, {
+      method: 'DELETE',
+    }),
 };

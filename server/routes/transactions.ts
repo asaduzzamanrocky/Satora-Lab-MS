@@ -116,6 +116,80 @@ transactionsRouter.post('/', (req: Request, res: Response) => {
   res.status(201).json(newTx);
 });
 
+// POST record manual / off-platform payment (Admin / Finance)
+transactionsRouter.post('/manual-payment', (req: Request, res: Response) => {
+  const user = getActiveUser(req);
+  if (!user.permissions.finance.create) {
+    return res.status(403).json({ error: 'Permission denied: cannot record manual payments' });
+  }
+
+  const {
+    type,
+    date,
+    amount,
+    reference,
+    paymentMethod,
+    category,
+    description,
+    projectId,
+    clientName,
+    notes,
+  } = req.body;
+
+  if (!date || !amount || !reference || !paymentMethod) {
+    return res.status(400).json({
+      error: 'Date, amount, reference number, and payment method are required for manual payment entries',
+    });
+  }
+
+  const numAmount = Number(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ error: 'Amount must be a positive number' });
+  }
+
+  const isIncome = type !== 'expense';
+  const defaultCategory = isIncome ? 'Client Payment' : 'Miscellaneous Overhead';
+  const finalCategory = category || defaultCategory;
+
+  const db = dbManager.get();
+  const nextId = `MAN-TRX-${new Date().getFullYear()}-${(db.transactions.length + 1).toString().padStart(3, '0')}`;
+
+  const baseDesc = description?.trim() ||
+    (isIncome ? `Manual off-platform payment received via ${paymentMethod}` : `Manual off-platform payment disbursed via ${paymentMethod}`);
+  const finalDesc = notes?.trim() ? `${baseDesc} (${notes.trim()})` : baseDesc;
+
+  const newTx: Transaction = {
+    id: nextId,
+    type: isIncome ? 'income' : 'expense',
+    date,
+    projectId: projectId || null,
+    isCompanyOverhead: !projectId,
+    category: finalCategory,
+    description: finalDesc,
+    amount: numAmount,
+    paymentMethod,
+    reference: reference.trim(),
+    paymentStatus: isIncome ? 'Received' : 'Paid',
+    clientName: clientName || undefined,
+    createdAt: new Date().toISOString(),
+  };
+
+  db.transactions.unshift(newTx);
+  syncProjectFinancials();
+  dbManager.save(db);
+
+  dbManager.logAudit({
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role,
+    action: 'CREATE',
+    resource: 'Transactions',
+    details: `Manual Off-Platform Payment (${newTx.type.toUpperCase()}): ৳${newTx.amount.toLocaleString()} | Ref: ${newTx.reference} | Method: ${newTx.paymentMethod}`,
+  });
+
+  res.status(201).json(newTx);
+});
+
 // PUT update transaction
 transactionsRouter.put('/:id', (req: Request, res: Response) => {
   const user = getActiveUser(req);

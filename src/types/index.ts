@@ -281,3 +281,36 @@ export interface VaultCredential {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface InvestmentEntry {
+  id: string;
+  source: string;
+  investorName: string;
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  reference: string;
+  notes?: string;
+  allocations: {
+    marketing: number;
+    subscriptions: number;
+    hardwareOffice: number;
+    operatingRunway: number;
+  };
+  createdAt: string;
+}
+
+export interface TreasurySummary {
+  totalInvestmentInjected: number;
+  totalRevenueReceived: number;
+  totalCashInflow: number;
+  totalExpensesPaid: number;
+  companyAccountRemaining: number;
+  marketingCostTotal: number;
+  subscriptionsCostTotal: number;
+  hardwareOfficeCostTotal: number;
+  payrollCostTotal: number;
+  directProjectCostsTotal: number;
+  overheadCostsTotal: number;
+  netOperatingCashProfit: number;
+}

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction, Invoice, Project, Client, CompanySettings, User, ManualPaymentOption } from '../../types';
+import { Transaction, Invoice, Project, Client, CompanySettings, User, ManualPaymentOption, InvestmentEntry, TreasurySummary } from '../../types';
 import { api } from '../../services/api';
 import { formatBDT, formatDhakaDate, getStatusBadgeClass } from '../../utils/formatters';
 import { TransactionFormModal } from './TransactionFormModal';
 import { InvoiceModal } from './InvoiceModal';
 import { ConfirmModal } from '../common/ConfirmModal';
 import { ManualPaymentModal } from '../settings/ManualPaymentModal';
+import { ManualPaymentEntryModal } from './ManualPaymentEntryModal';
+import { InvestmentModal } from './InvestmentModal';
 import {
   BadgePercent,
   Plus,
@@ -24,6 +26,14 @@ import {
   Building2,
   CreditCard,
   CheckCircle2,
+  Coins,
+  TrendingUp,
+  Sparkles,
+  PieChart,
+  Layers,
+  ShieldCheck,
+  Megaphone,
+  Laptop,
 } from 'lucide-react';
 
 interface FinancePageProps {
@@ -38,11 +48,13 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [paymentOptions, setPaymentOptions] = useState<ManualPaymentOption[]>([]);
+  const [investments, setInvestments] = useState<InvestmentEntry[]>([]);
+  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Tabs: 'transactions' | 'invoices' | 'payment_options'
-  const [activeTab, setActiveTab] = useState<'transactions' | 'invoices' | 'payment_options'>('transactions');
+  // Tabs: 'transactions' | 'invoices' | 'payment_options' | 'treasury'
+  const [activeTab, setActiveTab] = useState<'transactions' | 'invoices' | 'payment_options' | 'treasury'>('transactions');
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,11 +70,15 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentOptionToEdit, setPaymentOptionToEdit] = useState<ManualPaymentOption | null>(null);
+  const [manualPaymentModalOpen, setManualPaymentModalOpen] = useState(false);
+  const [investmentModalOpen, setInvestmentModalOpen] = useState(false);
+  const [successToast, setSuccessToast] = useState('');
 
   const canCreate = currentUser?.permissions.finance.create ?? false;
   const canEdit = currentUser?.permissions.finance.edit ?? false;
   const canDelete = currentUser?.permissions.finance.delete ?? false;
   const canViewFinancials = currentUser?.permissions.canViewFinancials ?? false;
+  const isSuperAdmin = currentUser?.role === 'super_admin';
 
   useEffect(() => {
     loadFinanceData();
@@ -71,12 +87,13 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
   const loadFinanceData = async () => {
     setLoading(true);
     try {
-      const [txRes, projList, clientList, setRes, payList] = await Promise.all([
+      const [txRes, projList, clientList, setRes, payList, invRes] = await Promise.all([
         api.getTransactions().catch(() => ({ transactions: [], invoices: [], categories: [], paymentMethods: [] })),
         api.getProjects().catch(() => []),
         api.getClients().catch(() => []),
         api.getSettings().catch(() => null),
         api.getPaymentOptions().catch(() => []),
+        api.getInvestments().catch(() => ({ investments: [], treasury: null as any })),
       ]);
 
       setTransactions(txRes.transactions || []);
@@ -86,11 +103,41 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
       setProjects(projList);
       setClients(clientList);
       setPaymentOptions(payList || []);
+      if (invRes) {
+        setInvestments(invRes.investments || []);
+        setTreasury(invRes.treasury || null);
+      }
       if (setRes) setSettings(setRes.settings);
     } catch (err) {
       console.error('Failed to load finance data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRecordManualPayment = async (data: any) => {
+    const newTx = await api.recordManualPayment(data);
+    setSuccessToast(`Manual payment logged: ৳${newTx.amount.toLocaleString()} [${newTx.reference}]. Monthly profit updated.`);
+    setTimeout(() => setSuccessToast(''), 5000);
+    loadFinanceData();
+  };
+
+  const handleSaveInvestment = async (data: Partial<InvestmentEntry>) => {
+    await api.createInvestment(data);
+    setSuccessToast(`Injected startup capital of ৳${Number(data.amount).toLocaleString()}. Company account balance updated.`);
+    setTimeout(() => setSuccessToast(''), 5000);
+    loadFinanceData();
+  };
+
+  const handleDeleteInvestment = async (id: string) => {
+    if (!window.confirm('Are you sure you want to remove this investment entry?')) return;
+    try {
+      await api.deleteInvestment(id);
+      setSuccessToast('Investment capital entry removed.');
+      setTimeout(() => setSuccessToast(''), 4000);
+      loadFinanceData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete investment');
     }
   };
 
@@ -169,6 +216,12 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
   const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0);
   const totalUnpaidInvoices = invoices.reduce((sum, i) => sum + Math.max(0, i.totalAmount - i.paidAmount), 0);
 
+  // Startup Investment & Treasury Calculations
+  const totalInvestmentInjected = investments.reduce((sum, inv) => sum + inv.amount, 0);
+  const companyAccountRemaining = treasury?.companyAccountRemaining ?? (totalInvestmentInjected + totalIncome - totalExpense);
+  const marketingSpend = treasury?.marketingCostTotal ?? transactions.filter(t => t.type === 'expense' && (t.category.toLowerCase().includes('marketing') || t.category.toLowerCase().includes('brand'))).reduce((s, t) => s + t.amount, 0);
+  const subscriptionsSpend = treasury?.subscriptionsCostTotal ?? transactions.filter(t => t.type === 'expense' && (t.category.toLowerCase().includes('software') || t.category.toLowerCase().includes('cloud') || t.category.toLowerCase().includes('subscription'))).reduce((s, t) => s + t.amount, 0);
+
   // Filter transactions
   const filteredTransactions = transactions.filter((t) => {
     const matchesSearch =
@@ -185,25 +238,60 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
 
   return (
     <div className="space-y-5">
+      {/* Toast Alert */}
+      {successToast && (
+        <div className="p-3 bg-emerald-900 text-white text-xs font-semibold rounded-2xl flex items-center justify-between border border-emerald-500 shadow-md animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{successToast}</span>
+          </div>
+          <button onClick={() => setSuccessToast('')} className="text-emerald-300 hover:text-white">
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Finance & Accounts
+              Finance, Accounts & Treasury
             </h1>
             <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
               BDT (৳) Ledger
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Cash in/out journal, client invoices, overhead expenses, and reconciliation in Dhaka BST.
+            Cash journal, off-platform manual payments, startup capital allocations, and live company treasury balance.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
           {canCreate && (
             <>
+              {/* Manual Payment Entry Button */}
+              <button
+                onClick={() => setManualPaymentModalOpen(true)}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+                title="Record off-platform receipt/payment with date, amount, reference, and payment method"
+              >
+                <ArrowDownRight className="w-4 h-4" />
+                <span>Manual Payment</span>
+              </button>
+
+              {/* Startup Investment Button */}
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setInvestmentModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+                  title="Record Startup Capital or Investor Equity Injection"
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>+ Startup Capital</span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   setInvToView(null);
@@ -230,68 +318,90 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Cash In */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* KPI Cards: Live Company Account Balance & Capital Runway */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Remaining in Company Account */}
+        <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white p-4.5 rounded-2xl border border-slate-800 shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Cash In (Received)</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <ArrowDownRight className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+              Company Account Remaining
+            </span>
+            <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+              <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <span className="text-xl font-black text-emerald-600 mt-2 block">
-            {formatBDT(totalIncome)}
+          <span className="text-xl font-black text-emerald-400 mt-2 block font-mono">
+            {formatBDT(companyAccountRemaining)}
           </span>
-          <span className="text-[11px] text-slate-400">All received milestone payments</span>
+          <span className="text-[10px] text-slate-400 mt-1 block">
+            Net Remaining in Dhaka Bank & Cash
+          </span>
         </div>
 
-        {/* Cash Out */}
+        {/* Startup Investment Injected */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Cash Out (Expenses)</span>
-            <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-          </div>
-          <span className="text-xl font-black text-rose-600 mt-2 block">
-            {formatBDT(totalExpense)}
-          </span>
-          <span className="text-[11px] text-slate-400">Direct costs, payroll & overhead</span>
-        </div>
-
-        {/* Net Cash Profit */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Net Cash Profit</span>
+            <span className="text-xs font-semibold text-slate-500">Startup Investment Injected</span>
             <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Coins className="w-4 h-4" />
+            </div>
+          </div>
+          <span className="text-xl font-black text-purple-700 mt-2 block font-mono">
+            {formatBDT(totalInvestmentInjected)}
+          </span>
+          <span className="text-[11px] text-slate-400">
+            {investments.length} funding round(s) / seed capital
+          </span>
+        </div>
+
+        {/* Marketing Cost */}
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Marketing & Brand Spend</span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <Megaphone className="w-4 h-4" />
+            </div>
+          </div>
+          <span className="text-xl font-black text-blue-600 mt-2 block font-mono">
+            {formatBDT(marketingSpend)}
+          </span>
+          <span className="text-[11px] text-slate-400">Ads, lead gen & sponsorships</span>
+        </div>
+
+        {/* Software Subscriptions Cost */}
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Software & Subscriptions</span>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <Laptop className="w-4 h-4" />
+            </div>
+          </div>
+          <span className="text-xl font-black text-indigo-700 mt-2 block font-mono">
+            {formatBDT(subscriptionsSpend)}
+          </span>
+          <span className="text-[11px] text-slate-400">ChatGPT, AWS, Figma & SaaS tools</span>
+        </div>
+
+        {/* Net Monthly Operating Cash Profit */}
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Operating Net Cash Profit</span>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
               <PiggyBank className="w-4 h-4" />
             </div>
           </div>
-          <span className={`text-xl font-black mt-2 block ${netCashFlow >= 0 ? 'text-purple-700' : 'text-rose-600'}`}>
+          <span className={`text-xl font-black mt-2 block font-mono ${netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
             {formatBDT(netCashFlow)}
           </span>
-          <span className="text-[11px] text-slate-400">Cash In minus Cash Out</span>
-        </div>
-
-        {/* Unpaid Invoices */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Pending Invoices Due</span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-          <span className="text-xl font-black text-amber-700 mt-2 block">
-            {formatBDT(totalUnpaidInvoices)}
+          <span className="text-[11px] text-slate-400">
+            Client In: {formatBDT(totalIncome)} | Out: {formatBDT(totalExpense)}
           </span>
-          <span className="text-[11px] text-slate-400">{invoices.filter((i) => i.status !== 'Paid').length} invoices awaiting</span>
         </div>
       </div>
 
       {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('transactions')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -311,6 +421,17 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
             }`}
           >
             Invoices & Billing ({invoices.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('treasury')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'treasury'
+                ? 'bg-purple-700 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Coins className="w-3.5 h-3.5 text-amber-400" />
+            <span>Investment & Treasury ({investments.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('payment_options')}
@@ -530,6 +651,226 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
         </div>
       )}
 
+      {/* Treasury & Startup Investments Tab */}
+      {activeTab === 'treasury' && (
+        <div className="space-y-5">
+          {/* Main Treasury Account Overview Card */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 rounded-2xl border border-slate-800 p-6 text-white shadow-xl">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-800">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-purple-400" />
+                  Live Corporate Treasury Ledger (Dhaka BST)
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black mt-2 font-mono text-emerald-400 tracking-tight">
+                  {formatBDT(companyAccountRemaining)}
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Current remaining balance in company accounts across corporate bank deposits & petty cash.
+                </p>
+              </div>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setInvestmentModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition cursor-pointer self-start lg:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Record Capital Injection</span>
+                </button>
+              )}
+            </div>
+
+            {/* Inflow vs Outflow Equation Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 text-xs">
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                <span className="text-[11px] text-slate-400 block">Total Startup Investment Injected</span>
+                <span className="text-lg font-bold text-purple-300 font-mono block">
+                  {formatBDT(totalInvestmentInjected)}
+                </span>
+                <span className="text-[10px] text-slate-400">Founder seed capital + angel rounds</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                <span className="text-[11px] text-slate-400 block">Total Client Revenue Received</span>
+                <span className="text-lg font-bold text-emerald-400 font-mono block">
+                  {formatBDT(totalIncome)}
+                </span>
+                <span className="text-[10px] text-slate-400">Paid invoices & milestones</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                <span className="text-[11px] text-slate-400 block">Total All-Time Operating Expenses Paid</span>
+                <span className="text-lg font-bold text-rose-400 font-mono block">
+                  {formatBDT(totalExpense)}
+                </span>
+                <span className="text-[10px] text-slate-400">Marketing + Subscriptions + Payroll + Direct</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Cost Breakdown Analysis: Marketing vs Software Subscriptions vs Hardware */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Marketing & Inbound Growth Costs */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Marketing & Brand Acquisition Costs</h3>
+                    <p className="text-[11px] text-slate-500">Paid from startup investment budget</p>
+                  </div>
+                </div>
+                <span className="font-mono text-base font-black text-blue-600">
+                  {formatBDT(marketingSpend)}
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs">
+                {transactions
+                  .filter((t) => t.type === 'expense' && (t.category.toLowerCase().includes('marketing') || t.category.toLowerCase().includes('brand')))
+                  .map((t) => (
+                    <div key={t.id} className="py-2.5 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-800 block text-[11px]">{t.description}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {formatDhakaDate(t.date)} • Ref: {t.reference}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-rose-600 text-xs">
+                        {formatBDT(t.amount)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Software Subscriptions & Tools Costs */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                    <Laptop className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Software & SaaS Subscriptions</h3>
+                    <p className="text-[11px] text-slate-500">ChatGPT, AWS, GitHub, Figma, Fastly licenses</p>
+                  </div>
+                </div>
+                <span className="font-mono text-base font-black text-indigo-700">
+                  {formatBDT(subscriptionsSpend)}
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto text-xs">
+                {transactions
+                  .filter((t) => t.type === 'expense' && (t.category.toLowerCase().includes('software') || t.category.toLowerCase().includes('cloud') || t.category.toLowerCase().includes('subscription')))
+                  .map((t) => (
+                    <div key={t.id} className="py-2.5 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-800 block text-[11px]">{t.description}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {formatDhakaDate(t.date)} • Ref: {t.reference}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-rose-600 text-xs">
+                        {formatBDT(t.amount)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Investment Capital Rounds Ledger */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-purple-600" />
+                  Recorded Startup Investment Capital Rounds
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Documented equity investments, angel contributions, and capital injections.
+                </p>
+              </div>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setInvestmentModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer self-start sm:self-auto shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Investment Round</span>
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-4">Investment ID & Round</th>
+                    <th className="py-3 px-4">Contributor / Investor</th>
+                    <th className="py-3 px-4">Deposit Date</th>
+                    <th className="py-3 px-4">Account / Method</th>
+                    <th className="py-3 px-4">Reference</th>
+                    <th className="py-3 px-4 text-right">Injected Capital</th>
+                    <th className="py-3 px-4">Target Allocations</th>
+                    {isSuperAdmin && <th className="py-3 px-4 text-center">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {investments.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4">
+                        <span className="font-mono text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-bold block w-max">
+                          {inv.id}
+                        </span>
+                        <span className="font-bold text-slate-900 mt-1 block">{inv.source}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-slate-700">{inv.investorName}</td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600">{formatDhakaDate(inv.date)}</td>
+                      <td className="py-3.5 px-4 text-slate-600">{inv.paymentMethod}</td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 font-bold">{inv.reference}</td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-purple-700 text-sm">
+                        {formatBDT(inv.amount)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="space-y-0.5 text-[10px]">
+                          <span className="block text-slate-600">
+                            Marketing: <strong>{formatBDT(inv.allocations?.marketing)}</strong>
+                          </span>
+                          <span className="block text-slate-600">
+                            Subscriptions: <strong>{formatBDT(inv.allocations?.subscriptions)}</strong>
+                          </span>
+                          <span className="block text-slate-600">
+                            Hardware: <strong>{formatBDT(inv.allocations?.hardwareOffice)}</strong>
+                          </span>
+                        </div>
+                      </td>
+                      {isSuperAdmin && (
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => handleDeleteInvestment(inv.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded"
+                            title="Delete Investment Record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Payment Options Tab */}
       {activeTab === 'payment_options' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
@@ -675,6 +1016,21 @@ export const FinancePage: React.FC<FinancePageProps> = ({ currentUser }) => {
         optionToEdit={paymentOptionToEdit}
         onSave={handleSavePaymentOption}
         onClose={() => setPaymentModalOpen(false)}
+      />
+
+      <ManualPaymentEntryModal
+        isOpen={manualPaymentModalOpen}
+        projects={projects}
+        paymentOptions={paymentOptions}
+        categories={categories}
+        onSave={handleRecordManualPayment}
+        onClose={() => setManualPaymentModalOpen(false)}
+      />
+
+      <InvestmentModal
+        isOpen={investmentModalOpen}
+        onSave={handleSaveInvestment}
+        onClose={() => setInvestmentModalOpen(false)}
       />
     </div>
   );

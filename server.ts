@@ -17,6 +17,7 @@ import { migrationRouter } from './server/routes/migration.js';
 import { paymentOptionsRouter } from './server/routes/payment-options.js';
 import { chatRouter } from './server/routes/chat.js';
 import { vaultRouter } from './server/routes/vault.js';
+import { investmentsRouter } from './server/routes/investments.js';
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ async function startServer() {
   app.use('/api/payment-options', paymentOptionsRouter);
   app.use('/api/chat', chatRouter);
   app.use('/api/vault', vaultRouter);
+  app.use('/api/investments', investmentsRouter);
 
   // Health check
   app.get('/api/health', (_req, res) => {

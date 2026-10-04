@@ -229,6 +229,39 @@ export interface VaultCredential {
   updatedAt: string;
 }
 
+export interface InvestmentEntry {
+  id: string;
+  source: string; // e.g. 'Founders Equity Capital', 'Angel Seed Round'
+  investorName: string;
+  amount: number; // in BDT (৳)
+  date: string;
+  paymentMethod: string;
+  reference: string;
+  notes?: string;
+  allocations: {
+    marketing: number;
+    subscriptions: number;
+    hardwareOffice: number;
+    operatingRunway: number;
+  };
+  createdAt: string;
+}
+
+export interface TreasurySummary {
+  totalInvestmentInjected: number;
+  totalRevenueReceived: number;
+  totalCashInflow: number;
+  totalExpensesPaid: number;
+  companyAccountRemaining: number;
+  marketingCostTotal: number;
+  subscriptionsCostTotal: number;
+  hardwareOfficeCostTotal: number;
+  payrollCostTotal: number;
+  directProjectCostsTotal: number;
+  overheadCostsTotal: number;
+  netOperatingCashProfit: number;
+}
+
 export interface DatabaseSchema {
   settings: CompanySettings;
   users: User[];
@@ -244,4 +277,5 @@ export interface DatabaseSchema {
   chatMessages: ChatMessage[];
   messageRequests: MessageRequest[];
   vaultCredentials: VaultCredential[];
+  investments: InvestmentEntry[];
 }
