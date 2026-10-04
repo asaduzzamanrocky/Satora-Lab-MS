@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="112" fill="#0F172A" />
+  <defs>
+    <linearGradient id="blueGrad" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="accentGlow" x1="120" y1="120" x2="390" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#2563EB" stop-opacity="0.1" />
+    </linearGradient>
+    <filter id="shadow" x="80" y="80" width="352" height="352" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0284C7" flood-opacity="0.45" />
+    </filter>
+  </defs>
+  
+  <!-- Outer ambient ring -->
+  <circle cx="256" cy="256" r="180" stroke="url(#accentGlow)" stroke-width="4" stroke-dasharray="8 8" opacity="0.6"/>
+  
+  <!-- Geometric Satora Lab Emblem: Interlocking S and Diamond Core -->
+  <g filter="url(#shadow)">
+    <!-- Top hook of 'S' -->
+    <path d="M340 144 H200 C155.8 144 120 179.8 120 224 C120 268.2 155.8 304 200 304 H312 C356.2 304 392 339.8 392 384 C392 428.2 356.2 464 312 464 H172" 
+          stroke="url(#blueGrad)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          
+    <!-- Lab node elements -->
+    <circle cx="340" cy="144" r="22" fill="#38BDF8" />
+    <circle cx="172" cy="464" r="22" fill="#2563EB" />
+    <circle cx="256" cy="256" r="28" fill="#FFFFFF" />
+    <circle cx="256" cy="256" r="14" fill="#0284C7" />
+  </g>
+</svg>

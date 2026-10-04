@@ -1,0 +1,6 @@
+{
+  "name": "Satora Lab - Office & Project Management",
+  "description": "Enterprise office, project management, and financial operations platform for Satora Lab with role-based access control, real-time tracking, and Dhaka timezone BDT financial reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
